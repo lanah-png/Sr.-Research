@@ -51,5 +51,5 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.addMarker(new MarkerOptions().position(home).title("Marker in marioshome"));
 
         mMap.moveCamera(CameraUpdateFactory.newLatLng(academies));
-    }
+    } 
 }
