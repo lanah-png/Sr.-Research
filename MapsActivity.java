@@ -45,6 +45,7 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
     ImageButton genButton;
     Marker marker;
     Marker previousMarker;
+    boolean isMarker;
     List<Double> coords;
     private boolean permissionDenied = false;
 
@@ -63,17 +64,21 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         //kml stuff
         final Resources resources = this.getResources();
 
+        isMarker = false;
         //button
         genButton = (ImageButton) findViewById(R.id.genButton);//get id of genButton
 
         genButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                if(isMarker){
+                    previousMarker.remove();
+                }
                 Toast.makeText(getApplicationContext(), "This button works!", Toast.LENGTH_LONG).show();//display the text of button1
 
                 previousMarker = marker;
 
-                InputStream inputStream = resources.openRawResource(R.raw.directions);
+                InputStream inputStream = resources.openRawResource(R.raw.riverside);
                 coords= readKML(inputStream);
 
                 double latitude = coords.get(1);
@@ -83,6 +88,7 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
                 LatLng latLng = new LatLng(latitude, longitude);
                 previousMarker = mMap.addMarker(new MarkerOptions().position(latLng));
                 marker = previousMarker;
+                isMarker=true;
                 // Showing the current location in Google Map
                 mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
 
@@ -104,21 +110,23 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
                 if (coordin != -1) {
                     while( !column.equals("        </coordinates>")) {
                         column = br.readLine();
-                        String tmpCoordin = column;
-                        tmpCoordin = tmpCoordin.replaceAll(" ", "");
-                        tmpCoordin = tmpCoordin.replaceAll("\t", "");
-                        tmpCoordin = tmpCoordin.replaceAll("<coordinates>", "");
-                        tmpCoordin = tmpCoordin.replaceAll("</coordinates>", "");
-                        tmpCoordin = tmpCoordin.replaceAll(",0", "");
-                        String[] coo = tmpCoordin.split(",");
-                        double longit= Double.parseDouble(coo[0]);
-                        double latit= Double.parseDouble(coo[1]);
-                        longi.add(longit);
-                        lati.add(latit);
-                        column= br.readLine();
+                        if (!column.equals("        </coordinates>")) {
+                            String tmpCoordin = column;
+                            tmpCoordin = tmpCoordin.replaceAll(" ", "");
+                            tmpCoordin = tmpCoordin.replaceAll("\t", "");
+                            tmpCoordin = tmpCoordin.replaceAll("<coordinates>", "");
+                            tmpCoordin = tmpCoordin.replaceAll("</coordinates>", "");
+                            tmpCoordin = tmpCoordin.replaceAll(",0", "");
+                            String[] coo = tmpCoordin.split(",");
+                            double longit= Double.parseDouble(coo[0]);
+                            double latit= Double.parseDouble(coo[1]);
+                            longi.add(longit);
+                            lati.add(latit);
+                        }
                     }
                     enditall=1;
                 }
+
 
 
             }
@@ -162,11 +170,14 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
 
 
         // Add a marker in Sydney and move the camera
-        LatLng academies = new LatLng(39.042733, -77.549793);
+        LatLng riverside = new LatLng(39.09170554630121, -77.49002780741466);
 
-        mMap.addMarker(new MarkerOptions().position(academies).title("Marker in Academies"));
+        mMap.addMarker(new MarkerOptions().position(riverside).title("Marker in Riverside"));
 
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(academies));
+        mMap.moveCamera(CameraUpdateFactory.newLatLng(riverside));
+        LatLng lands = new LatLng(39.081797503788735, -77.49575298111547);
+
+        mMap.addMarker(new MarkerOptions().position(lands).title("Marker in Lansdowne Town Center"));
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) ==
