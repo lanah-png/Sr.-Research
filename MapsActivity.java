@@ -43,10 +43,13 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
     private GoogleMap mMap;
     private ActivityMapsBinding binding;
     ImageButton genButton;
+    ImageButton markerButton;
     Marker marker;
     Marker previousMarker;
     boolean isMarker;
     List<Double> coords;
+    Marker draggable_marker;
+    public boolean markerDragged;
     private boolean permissionDenied = false;
 
     @Override
@@ -65,8 +68,10 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         final Resources resources = this.getResources();
 
         isMarker = false;
+        markerDragged = false;
         //button
         genButton = (ImageButton) findViewById(R.id.genButton);//get id of genButton
+        markerButton = (ImageButton) findViewById(R.id.markerButton);//get id of genButton
 
         genButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -94,6 +99,24 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
 
                 // Zoom in the Google Map
                 mMap.animateCamera(CameraUpdateFactory.zoomTo(15));
+            }
+        });
+        markerButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+//                Toast.makeText(getApplicationContext(), "This button works!", Toast.LENGTH_LONG).show();//display the text of button1
+
+                if(!markerDragged) {
+                    final LatLng acadLocation = new LatLng(39.04278015504511, -77.55114546415827);
+                    draggable_marker= mMap.addMarker(new MarkerOptions().position(acadLocation).title("Draggable Marker").draggable(true));
+                    mMap.moveCamera(CameraUpdateFactory.newLatLng(acadLocation));
+                    markerDragged =true;
+                }
+                else {
+                    LatLng draggedCoords = draggable_marker.getPosition();
+                    markerDragged =false;
+                    Toast.makeText(getApplicationContext(), draggedCoords.toString(), Toast.LENGTH_LONG).show();
+                }
             }
         });
     }
@@ -225,9 +248,4 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
             }
         }
     }
-
-
-
-
-
 }
