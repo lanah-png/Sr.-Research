@@ -1,4 +1,4 @@
-package com.example.mapproj;
+package com.example.srresearchtake4;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
@@ -14,7 +14,9 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 
-import com.example.mapproj.databinding.ActivityMapsBinding;
+import com.example.srresearchtake4.databinding.ActivityMapsBinding;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.GoogleMap.OnMyLocationButtonClickListener;
@@ -24,6 +26,8 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -51,6 +55,9 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
     Marker draggable_marker;
     public boolean markerDragged;
     private boolean permissionDenied = false;
+    private FusedLocationProviderClient client;
+    SupportMapFragment mapFragment;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,7 +67,7 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         setContentView(binding.getRoot());
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
-        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
+        mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
@@ -72,6 +79,11 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         //button
         genButton = (ImageButton) findViewById(R.id.genButton);//get id of genButton
         markerButton = (ImageButton) findViewById(R.id.markerButton);//get id of genButton
+
+        //initialize fused location
+        client = LocationServices.getFusedLocationProviderClient(this);
+
+
 
         genButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -99,6 +111,8 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
 
                 // Zoom in the Google Map
                 mMap.animateCamera(CameraUpdateFactory.zoomTo(15));
+
+
             }
         });
         markerButton.setOnClickListener(new View.OnClickListener() {
@@ -223,6 +237,29 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
     @SuppressWarnings("MissingPermission")
     private void enableUserLocation() {
         mMap.setMyLocationEnabled(true);
+        Task<Location> task = client.getLastLocation();
+        task.addOnSuccessListener(new OnSuccessListener<Location>() {
+            @Override
+            public void onSuccess(Location location) {
+                //When success
+                if (location != null){
+                    //Sync map
+                    mapFragment.getMapAsync(new OnMapReadyCallback() {
+                        @Override
+                        public void onMapReady(@NonNull GoogleMap googleMap) {
+                            //Initialize lat lng
+                            LatLng latlng = new LatLng(location.getLatitude(), location.getLongitude());
+                            //Create marker options
+                            MarkerOptions options = new MarkerOptions().position(latlng).title("I am there");
+                            //Zoom map
+                            googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latlng,10));
+                            //add marker on map
+                            googleMap.addMarker(options);
+                        }
+                    });
+                }
+            }
+        });
     }
 
     @Override
@@ -248,4 +285,9 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
             }
         }
     }
+
+
+
+
+
 }
