@@ -1,12 +1,15 @@
-package com.example.srresearchtake4;
+package com.example.mapproj;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.location.Location;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ImageButton;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -14,7 +17,9 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 
-import com.example.srresearchtake4.databinding.ActivityMapsBinding;
+import com.example.mapproj.databinding.ActivityMapsBinding;
+import com.example.mapproj.directionhelpers.FetchURL;
+import com.example.mapproj.directionhelpers.TaskLoadedCallback;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -26,6 +31,8 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
 
@@ -39,7 +46,9 @@ import java.util.Random;
 
 
 public class MapsActivity extends FragmentActivity implements OnMyLocationButtonClickListener,
+        TaskLoadedCallback,
         OnMyLocationClickListener,
+        GoogleMap.OnMarkerDragListener,
         OnMapReadyCallback,
         ActivityCompat.OnRequestPermissionsResultCallback {
 
@@ -55,9 +64,14 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
     Marker draggable_marker;
     public boolean markerDragged;
     private boolean permissionDenied = false;
+    private Button alertButton;
+    private TextView alertView;
+    Button directionsButton;
+    MarkerOptions userLoc, nextLoc;
+    LatLng draggedCoords;
+    Polyline currentPolyline;
     private FusedLocationProviderClient client;
     SupportMapFragment mapFragment;
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,10 +80,26 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         binding = ActivityMapsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
+
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
+
+
+
+
+        //initialize fused location
+        client = LocationServices.getFusedLocationProviderClient(this);
+
+        //alert button
+        alertButton = (Button) findViewById(R.id.alertButton);
+        alertView = (TextView) findViewById(R.id.alertView);
+        //directions stuff
+        directionsButton = findViewById(R.id.directionsButton);
+
+
+//
 
         //kml stuff
         final Resources resources = this.getResources();
@@ -79,11 +109,6 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         //button
         genButton = (ImageButton) findViewById(R.id.genButton);//get id of genButton
         markerButton = (ImageButton) findViewById(R.id.markerButton);//get id of genButton
-
-        //initialize fused location
-        client = LocationServices.getFusedLocationProviderClient(this);
-
-
 
         genButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -111,8 +136,6 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
 
                 // Zoom in the Google Map
                 mMap.animateCamera(CameraUpdateFactory.zoomTo(15));
-
-
             }
         });
         markerButton.setOnClickListener(new View.OnClickListener() {
@@ -122,17 +145,52 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
 
                 if(!markerDragged) {
                     final LatLng acadLocation = new LatLng(39.04278015504511, -77.55114546415827);
-                    draggable_marker= mMap.addMarker(new MarkerOptions().position(acadLocation).title("Draggable Marker").draggable(true));
+                    nextLoc = new MarkerOptions().position(acadLocation).title("Draggable Marker").draggable(true);
+                    draggable_marker= mMap.addMarker(nextLoc);
                     mMap.moveCamera(CameraUpdateFactory.newLatLng(acadLocation));
                     markerDragged =true;
                 }
                 else {
-                    LatLng draggedCoords = draggable_marker.getPosition();
-                    markerDragged =false;
-                    Toast.makeText(getApplicationContext(), draggedCoords.toString(), Toast.LENGTH_LONG).show();
+                    draggable_marker.remove();
+                    final LatLng acadLocation = new LatLng(39.04278015504511, -77.55114546415827);
+                    nextLoc = new MarkerOptions().position(acadLocation).title("Draggable Marker").draggable(true);
+                    draggable_marker= mMap.addMarker(nextLoc);
                 }
             }
         });
+        directionsButton.setOnClickListener(view -> {
+            if(!markerDragged) {
+                Toast.makeText(getApplicationContext(), "Please drag the draggable marker to the max distance you're willing to cover while exploring!", Toast.LENGTH_LONG).show();//display the text of button1
+
+            }
+            else {
+                draggedCoords= draggable_marker.getPosition();
+                new FetchURL(MapsActivity.this).execute(getUrl(userLoc.getPosition(), draggedCoords, "walking"), "walking");
+
+            }
+
+        });
+    }
+    private String getUrl(LatLng origin, LatLng dest, String directionMode) {
+        // Origin of route
+        String str_origin = "origin=" + origin.latitude + "," + origin.longitude;
+        // Destination of route
+        String str_dest = "destination=" + dest.latitude + "," + dest.longitude;
+        // Mode
+        String mode = "mode=" + directionMode;
+        // Building the parameters to the web service
+        String parameters = str_origin + "&" + str_dest + "&" + mode;
+        // Output format
+        String output = "json";
+        // Building the url to the web service
+        String url = "https://maps.googleapis.com/maps/api/directions/" + output + "?" + parameters + "&key=" + getString(R.string.google_maps_key);
+        return url;
+    }
+    @Override
+    public void onTaskDone(Object... values) {
+        if (currentPolyline != null)
+            currentPolyline.remove();
+        currentPolyline = mMap.addPolyline((PolylineOptions) values[0]);
     }
     private static List<Double> readKML(InputStream fileKML) {
         String column = null;
@@ -205,13 +263,14 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         mMap.setOnMyLocationButtonClickListener(this);
         mMap.setOnMyLocationClickListener(this);
 
+        Log.d("mylog", "Added Markers");
 
         // Add a marker in Sydney and move the camera
         LatLng riverside = new LatLng(39.09170554630121, -77.49002780741466);
 
         mMap.addMarker(new MarkerOptions().position(riverside).title("Marker in Riverside"));
 
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(riverside));
+//        mMap.moveCamera(CameraUpdateFactory.newLatLng(userLoc.getPosition()));
         LatLng lands = new LatLng(39.081797503788735, -77.49575298111547);
 
         mMap.addMarker(new MarkerOptions().position(lands).title("Marker in Lansdowne Town Center"));
@@ -229,8 +288,7 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
                 ActivityCompat.requestPermissions(this, new String[] {Manifest.permission.ACCESS_FINE_LOCATION},ACCESS_LOCATION_REQUEST_CODE);
             }
         }
-
-
+        mMap.setOnMarkerDragListener(this);
 
     }
 
@@ -250,11 +308,11 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
                             //Initialize lat lng
                             LatLng latlng = new LatLng(location.getLatitude(), location.getLongitude());
                             //Create marker options
-                            MarkerOptions options = new MarkerOptions().position(latlng).title("I am there");
+                            userLoc = new MarkerOptions().position(latlng).title("I am there");
                             //Zoom map
                             googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latlng,10));
                             //add marker on map
-                            googleMap.addMarker(options);
+                            googleMap.addMarker(userLoc);
                         }
                     });
                 }
@@ -287,7 +345,18 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
     }
 
 
+    @Override
+    public void onMarkerDragStart(@NonNull Marker marker) {
 
+    }
 
+    @Override
+    public void onMarkerDrag(@NonNull Marker marker) {
 
+    }
+
+    @Override
+    public void onMarkerDragEnd(@NonNull Marker marker) {
+        draggedCoords = marker.getPosition();
+    }
 }
