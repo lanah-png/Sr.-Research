@@ -24,6 +24,24 @@
         map:uiZoomControls="true"
         map:uiZoomGestures="true"/>
 
+    <Button
+        android:id="@+id/alertButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:text="DON'T GEOJOURNEY AND DRIVE"
+        android:textSize="28dp" />
+
+    <TextView
+        android:id = "@+id/alertView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below = "@+id/alertButton"
+        android:layout_centerHorizontal="true"
+        android:text = "alert received"
+        android:textSize = "20dp"
+        android:visibility = "invisible"
+        android:layout_marginTop="10dp"/>
 
     <ImageButton
         android:id="@+id/genButton"
@@ -49,5 +67,12 @@
         android:layout_marginLeft="100dp"
         android:src="@drawable/marker"
         ></ImageButton>
+    <Button
+        android:id = "@+id/directionsButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="120dp"
+        android:text = "get direction"
+        ></Button>
 
 </FrameLayout>
