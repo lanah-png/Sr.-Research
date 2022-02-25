@@ -1,9 +1,13 @@
-package com.example.mapproj;
+package com.example.srresearchtake4;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
+import android.app.PendingIntent;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
+import android.graphics.Color;
 import android.location.Location;
+import android.location.LocationRequest;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -17,10 +21,15 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 
-import com.example.mapproj.databinding.ActivityMapsBinding;
-import com.example.mapproj.directionhelpers.FetchURL;
-import com.example.mapproj.directionhelpers.TaskLoadedCallback;
+import com.example.srresearchtake4.databinding.ActivityMapsBinding;
+import com.example.srresearchtake4.directionhelpers.FetchURL;
+import com.example.srresearchtake4.directionhelpers.TaskLoadedCallback;
+import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.Geofence;
+import com.google.android.gms.location.GeofenceStatusCodes;
+import com.google.android.gms.location.GeofencingClient;
+import com.google.android.gms.location.GeofencingRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -28,11 +37,13 @@ import com.google.android.gms.maps.GoogleMap.OnMyLocationButtonClickListener;
 import com.google.android.gms.maps.GoogleMap.OnMyLocationClickListener;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
+import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
 
@@ -45,12 +56,12 @@ import java.util.List;
 import java.util.Random;
 
 
-public class MapsActivity extends FragmentActivity implements OnMyLocationButtonClickListener,
-        TaskLoadedCallback,
+public class MapsActivity extends FragmentActivity implements OnMyLocationButtonClickListener, TaskLoadedCallback, GoogleMap.OnMarkerDragListener,
         OnMyLocationClickListener,
-        GoogleMap.OnMarkerDragListener,
         OnMapReadyCallback,
-        ActivityCompat.OnRequestPermissionsResultCallback {
+        ActivityCompat.OnRequestPermissionsResultCallback, GoogleMap.OnMapLongClickListener {
+
+    private static final String TAG = "MapsActivity";
 
     private int ACCESS_LOCATION_REQUEST_CODE = 10001;
     private GoogleMap mMap;
@@ -72,6 +83,12 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
     Polyline currentPolyline;
     private FusedLocationProviderClient client;
     SupportMapFragment mapFragment;
+    private GeofencingClient geofencingClient;
+    private GeofenceHelper geofenceHelper;
+
+    private float GEOFENCE_RADIUS = 20;
+    private String GEOFENCE_ID = "SOME_GEOFENCE_ID";
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -80,14 +97,10 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         binding = ActivityMapsBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
-
-
-
 
         //initialize fused location
         client = LocationServices.getFusedLocationProviderClient(this);
@@ -98,9 +111,6 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         //directions stuff
         directionsButton = findViewById(R.id.directionsButton);
 
-
-//
-
         //kml stuff
         final Resources resources = this.getResources();
 
@@ -109,6 +119,12 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         //button
         genButton = (ImageButton) findViewById(R.id.genButton);//get id of genButton
         markerButton = (ImageButton) findViewById(R.id.markerButton);//get id of genButton
+
+
+        //geofence setup
+        geofencingClient = LocationServices.getGeofencingClient(this);
+        geofenceHelper = new GeofenceHelper(this);
+
 
         genButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -136,6 +152,8 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
 
                 // Zoom in the Google Map
                 mMap.animateCamera(CameraUpdateFactory.zoomTo(15));
+
+
             }
         });
         markerButton.setOnClickListener(new View.OnClickListener() {
@@ -262,15 +280,17 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         googleMap.setBuildingsEnabled(false);
         mMap.setOnMyLocationButtonClickListener(this);
         mMap.setOnMyLocationClickListener(this);
+        mMap.getUiSettings().setZoomControlsEnabled(false);
 
         Log.d("mylog", "Added Markers");
 
-        // Add a marker in Sydney and move the camera
+        // Add a marker and move the camera
+        //mMap.moveCamera(CameraUpdateFactory.newLatLng(userLoc.getPosition()));
         LatLng riverside = new LatLng(39.09170554630121, -77.49002780741466);
 
         mMap.addMarker(new MarkerOptions().position(riverside).title("Marker in Riverside"));
 
-//        mMap.moveCamera(CameraUpdateFactory.newLatLng(userLoc.getPosition()));
+        mMap.moveCamera(CameraUpdateFactory.newLatLng(riverside));
         LatLng lands = new LatLng(39.081797503788735, -77.49575298111547);
 
         mMap.addMarker(new MarkerOptions().position(lands).title("Marker in Lansdowne Town Center"));
@@ -279,6 +299,9 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
                 ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) ==
                         PackageManager.PERMISSION_GRANTED ) {
             enableUserLocation();
+
+            mMap.setOnMapLongClickListener(this);
+
         } else {
             if (ActivityCompat.shouldShowRequestPermissionRationale(this,Manifest.permission.ACCESS_FINE_LOCATION)) {
                 //shows user dialog why permission is necessary
@@ -288,11 +311,13 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
                 ActivityCompat.requestPermissions(this, new String[] {Manifest.permission.ACCESS_FINE_LOCATION},ACCESS_LOCATION_REQUEST_CODE);
             }
         }
+
         mMap.setOnMarkerDragListener(this);
 
     }
 
-    @SuppressWarnings("MissingPermission")
+
+    @SuppressLint("MissingPermission")
     private void enableUserLocation() {
         mMap.setMyLocationEnabled(true);
         Task<Location> task = client.getLastLocation();
@@ -310,7 +335,7 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
                             //Create marker options
                             userLoc = new MarkerOptions().position(latlng).title("I am there");
                             //Zoom map
-                            googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latlng,10));
+                            googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latlng,14));
                             //add marker on map
                             googleMap.addMarker(userLoc);
                         }
@@ -322,7 +347,7 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
 
     @Override
     public boolean onMyLocationButtonClick() {
-        Toast.makeText(this, "MyLocation button clicked", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "My Location button clicked", Toast.LENGTH_SHORT).show();
         // Return false so that we don't consume the event and the default behavior still occurs
         // (the camera animates to the user's current position).
         return false;
@@ -334,16 +359,52 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
     }
 
 
-    public void onRequestPermissionResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        if (requestCode == ACCESS_LOCATION_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                enableUserLocation();
-            } else {
-                //show dialog that permission is not granted
-            }
-        }
+    @Override
+    public void onMapLongClick(@NonNull LatLng latLng) {
+        mMap.clear();
+        addMarker(latLng);
+        addCircle(latLng, GEOFENCE_RADIUS);
+        addGeofence(latLng, GEOFENCE_RADIUS);
     }
 
+    @SuppressLint("MissingPermission")
+    private void addGeofence(LatLng latLng, float radius) {
+
+        Geofence geofence = geofenceHelper.getGeofence(GEOFENCE_ID, latLng, radius, Geofence.GEOFENCE_TRANSITION_ENTER | Geofence.GEOFENCE_TRANSITION_DWELL | Geofence.GEOFENCE_TRANSITION_EXIT);
+        GeofencingRequest geofencingRequest = geofenceHelper.getGeofencingRequest(geofence);
+        PendingIntent pendingIntent = geofenceHelper.getPendingIntent();
+
+        geofencingClient.addGeofences(geofencingRequest, pendingIntent)
+                .addOnSuccessListener(new OnSuccessListener<Void>() {
+                    @Override
+                    public void onSuccess(Void aVoid) {
+                        Log.d(TAG, "onSuccess: Geofence Added...");
+                    }
+                })
+                .addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        String errorMessage = geofenceHelper.getErrorString(e);
+                        Log.d(TAG, "onFailure: " + errorMessage);
+                    }
+                });
+    }
+
+    private void addMarker(LatLng latLng) {
+        MarkerOptions markerOptions = new MarkerOptions().position(latLng);
+        mMap.addMarker(markerOptions);
+    }
+
+    private void addCircle(LatLng latLng, float radius) {
+        CircleOptions circleOptions = new CircleOptions();
+        circleOptions.center(latLng);
+        circleOptions.radius(radius);
+        circleOptions.strokeColor(Color.argb(255,99,109,206));
+        circleOptions.fillColor(Color.argb(64,118,252,138));
+        circleOptions.strokeWidth(4);
+        mMap.addCircle(circleOptions);
+
+    }
 
     @Override
     public void onMarkerDragStart(@NonNull Marker marker) {
@@ -359,4 +420,7 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
     public void onMarkerDragEnd(@NonNull Marker marker) {
         draggedCoords = marker.getPosition();
     }
+
+
+
 }
