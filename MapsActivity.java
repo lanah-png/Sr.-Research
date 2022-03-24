@@ -269,9 +269,24 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
 //        LatLng lands = new LatLng(39.081797503788735, -77.49575298111547);
 //
 //        mMap.addMarker(new MarkerOptions().position(lands).title("Marker in Lansdowne Town Center"));
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) ==
+                        PackageManager.PERMISSION_GRANTED) {
+            enableUserLocation();
+        } else {
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
+                //shows user dialog why permission is necessary
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, ACCESS_LOCATION_REQUEST_CODE);
+
+            } else {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, ACCESS_LOCATION_REQUEST_CODE);
+                mMap.setOnMarkerDragListener(this);
+
+            }
+        }
 
 
-        mMap.setOnMarkerDragListener(this);
+            mMap.setOnMarkerDragListener(this);
 
     }
 
