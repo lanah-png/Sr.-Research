@@ -1,13 +1,23 @@
-package com.example.mapproj;
+package com.example.srresearchtake4;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.Color;
 import android.location.Location;
+
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -16,17 +26,19 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 
-import com.example.mapproj.databinding.ActivityMapsBinding;
-import com.example.mapproj.directionhelpers.FetchURL;
-import com.example.mapproj.directionhelpers.TaskLoadedCallback;
+import com.example.srresearchtake4.databinding.ActivityMapsBinding;
+import com.example.srresearchtake4.directionhelpers.FetchURL;
+import com.example.srresearchtake4.directionhelpers.TaskLoadedCallback;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingClient;
 import com.google.android.gms.location.GeofencingRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -34,6 +46,8 @@ import com.google.android.gms.maps.GoogleMap.OnMyLocationButtonClickListener;
 import com.google.android.gms.maps.GoogleMap.OnMyLocationClickListener;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
@@ -52,9 +66,10 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         OnMyLocationClickListener,
         GoogleMap.OnMarkerDragListener,
         OnMapReadyCallback,
-        ActivityCompat.OnRequestPermissionsResultCallback,
-        GoogleMap.OnMapLongClickListener {
+        ActivityCompat.OnRequestPermissionsResultCallback {
+//        GoogleMap.OnMapLongClickListener
 
+    public static final String TAG = "MapsActivity";
     private int ACCESS_LOCATION_REQUEST_CODE = 10001;
     private GoogleMap mMap;
     private ActivityMapsBinding binding;
@@ -74,11 +89,15 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
     LatLng draggedCoords;
     private GeofencingClient geofencingClient;
     private GeofenceHelper geofenceHelper;
-    private float GEOFENCE_RADIUS = 20;
+    private float GEOFENCE_RADIUS = 100;
     private String GEOFENCE_ID = "SOME_GEOFENCE_ID";
     private FusedLocationProviderClient client;
     SupportMapFragment mapFragment;
     public ArrayList<LatLng> randomCoords;
+    LocationRequest locationRequest;
+
+    Marker userLocationMarker;
+    Circle userLocationAccuracyCircle;
 
 
     @Override
@@ -119,6 +138,7 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         geofenceHelper = new GeofenceHelper(this);
 
         genButton.setOnClickListener(new View.OnClickListener() {
+            @RequiresApi(api = Build.VERSION_CODES.M)
             @Override
             public void onClick(View view) {
                 if (!markerDragged) {
@@ -130,12 +150,16 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
 //                    new FetchURL(MapsActivity.this).execute(getUrl(userLoc.getPosition(), draggedCoords, "walking"), "walking");
                     if (isMarker) {
                         previousMarker.remove();
+                        mMap.clear();
                     }
                     if (randomCoords != null) {
                         LatLng randomCoord = generateRandomCoords(randomCoords);
                         previousMarker = mMap.addMarker(new MarkerOptions().position(randomCoord));
                         marker = previousMarker;
                         isMarker = true;
+                        //ple
+                        addCircle(randomCoord, GEOFENCE_RADIUS);
+                        addGeofence(randomCoord, GEOFENCE_RADIUS);
                         // Showing the current location in Google Map
                         mMap.moveCamera(CameraUpdateFactory.newLatLng(randomCoord));
 
@@ -168,6 +192,17 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
 
 
         });
+//picture
+        locationRequest = LocationRequest.create();
+        locationRequest.setInterval(500);
+        locationRequest.setFastestInterval(500);
+        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+
+        registerReceiver(broadcastReceiver, new IntentFilter("updatetext"));
+
+
+
+
     }
 
     //coord generation
@@ -197,52 +232,7 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         int indexRand = rand.nextInt(coords.size());
         return coords.get(indexRand);
     }
-//    private static List<Double> readKML(List fileKML) {
-//        String column = null;
-//        BufferedReader br = new BufferedReader(new InputStreamReader(fileKML));
-//        List<Double> longi = new ArrayList<Double>();
-//        List<Double> lati = new ArrayList<Double>();
-//        try {
-//            int enditall=0;
-//            while( (column = br.readLine()) != null&&enditall!=1) {
-//                int coordin = column.indexOf("<coordinates>");
-//
-//                if (coordin != -1) {
-//                    while( !column.equals("        </coordinates>")) {
-//                        column = br.readLine();
-//                        if (!column.equals("        </coordinates>")) {
-//                            String tmpCoordin = column;
-//                            tmpCoordin = tmpCoordin.replaceAll(" ", "");
-//                            tmpCoordin = tmpCoordin.replaceAll("\t", "");
-//                            tmpCoordin = tmpCoordin.replaceAll("<coordinates>", "");
-//                            tmpCoordin = tmpCoordin.replaceAll("</coordinates>", "");
-//                            tmpCoordin = tmpCoordin.replaceAll(",0", "");
-//                            String[] coo = tmpCoordin.split(",");
-//                            double longit= Double.parseDouble(coo[0]);
-//                            double latit= Double.parseDouble(coo[1]);
-//                            longi.add(longit);
-//                            lati.add(latit);
-//                        }
-//                    }
-//                    enditall=1;
-//                }
-//
-//
-//
-//            }
-//            br.close();
-//            Random rand = new Random();
-//            int indexRand = rand.nextInt(lati.size());
-//            List<Double> coords = new ArrayList<Double>();
-//            coords.add(longi.get(indexRand));
-//            coords.add(lati.get(indexRand));
-//            return coords;
-//         }
-//        catch (IOException e) {
-//            e.printStackTrace();
-//            return null;
-//        }
-//    }
+
     /**
      * Request code for location permission request.
      *
@@ -280,22 +270,76 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
 //
 //        mMap.addMarker(new MarkerOptions().position(lands).title("Marker in Lansdowne Town Center"));
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED &&
-                ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) ==
-                        PackageManager.PERMISSION_GRANTED) {
-            enableUserLocation();
-            mMap.setOnMapLongClickListener(this);
-        } else {
-            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
-                //shows user dialog why permission is necessary
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, ACCESS_LOCATION_REQUEST_CODE);
 
-            } else {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, ACCESS_LOCATION_REQUEST_CODE);
-            }
-        }
         mMap.setOnMarkerDragListener(this);
 
+    }
+
+    LocationCallback locationCallback = new LocationCallback() {
+        @Override
+        public void onLocationResult(@NonNull LocationResult locationResult) {
+            super.onLocationResult(locationResult);
+            Log.d(TAG, "onLocationResult: " + locationResult.getLastLocation());
+            if (mMap != null) {
+                setUserLocationMarker(locationResult.getLastLocation());
+            }
+        }
+    };
+
+    private void setUserLocationMarker(Location location) {
+        LatLng latLng = new LatLng(location.getLatitude(), location.getLongitude());
+        if (userLocationMarker == null) {
+            //Create a new marker
+            MarkerOptions markerOptions = new MarkerOptions();
+            markerOptions.position(latLng);
+            markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.mochapic));
+            markerOptions.rotation(location.getBearing());
+            markerOptions.anchor((float).5,(float).5);
+            userLocationMarker = mMap.addMarker(markerOptions);
+            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 17));
+        } else {
+            userLocationMarker.setPosition(latLng);
+            userLocationMarker.setRotation(location.getBearing());
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 17));
+            //use the previously created marker
+        }
+
+        if (userLocationAccuracyCircle == null) {
+            CircleOptions circleOptions= new CircleOptions();
+            circleOptions.center(latLng);
+            circleOptions.strokeWidth(4);
+            circleOptions.strokeColor(Color.argb(255, 252, 186, 203));
+            circleOptions.fillColor(Color.argb(32, 252, 148, 175));
+            circleOptions.radius(location.getAccuracy());
+            userLocationAccuracyCircle = mMap.addCircle(circleOptions);
+        } else {
+            userLocationAccuracyCircle.setCenter(latLng);
+            userLocationAccuracyCircle.setRadius(location.getAccuracy());
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private void startLocationUpdates() {
+        client.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper());
+    }
+
+    private void stopLocationUpdates() {
+        client.removeLocationUpdates(locationCallback);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            startLocationUpdates();
+        }  //request permissions
+
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        stopLocationUpdates();
     }
 
     @SuppressWarnings("MissingPermission")
@@ -357,13 +401,14 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
 
     }
 
-    public void onMapLongClick(@NonNull LatLng latLng) {
-        mMap.clear();
-        addMarker(latLng);
-        addCircle(latLng, GEOFENCE_RADIUS);
-//        addGeofence(latLng, GEOFENCE_RADIUS);
-    }
+//    public void onMapLongClick(@NonNull LatLng latLng) {
+//        mMap.clear();
+//        addMarker(latLng);
+//        addCircle(latLng, GEOFENCE_RADIUS);
+////      addGeofence(latLng, GEOFENCE_RADIUS);
+//    }
 
+    @RequiresApi(api = Build.VERSION_CODES.M)
     @SuppressLint("MissingPermission")
     private void addGeofence(LatLng latLng, float radius) {
 
@@ -402,4 +447,22 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         mMap.addCircle(circleOptions);
 
     }
+
+    BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            mMap.clear();
+
+
+            Toast.makeText(context, "beep", Toast.LENGTH_SHORT).show();
+        }
+
+    };
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        unregisterReceiver(broadcastReceiver);
+    }
+
 }
