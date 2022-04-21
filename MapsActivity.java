@@ -1,4 +1,4 @@
-package com.example.srresearchtake4;
+package com.example.mapproj;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
@@ -11,11 +11,6 @@ import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.Color;
 import android.location.Location;
-
-import com.google.android.gms.location.LocationCallback;
-import com.google.android.gms.location.LocationRequest;
-
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Looper;
 import android.util.Log;
@@ -26,18 +21,19 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 
-import com.example.srresearchtake4.databinding.ActivityMapsBinding;
-import com.example.srresearchtake4.directionhelpers.FetchURL;
-import com.example.srresearchtake4.directionhelpers.TaskLoadedCallback;
+import com.example.mapproj.databinding.ActivityMapsBinding;
+import com.example.mapproj.directionhelpers.FetchURL;
+import com.example.mapproj.directionhelpers.TaskLoadedCallback;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingClient;
 import com.google.android.gms.location.GeofencingRequest;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -66,15 +62,16 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         OnMyLocationClickListener,
         GoogleMap.OnMarkerDragListener,
         OnMapReadyCallback,
-        ActivityCompat.OnRequestPermissionsResultCallback {
-//        GoogleMap.OnMapLongClickListener
+        ActivityCompat.OnRequestPermissionsResultCallback
+{
 
-    public static final String TAG = "MapsActivity";
+
     private int ACCESS_LOCATION_REQUEST_CODE = 10001;
     private GoogleMap mMap;
     private ActivityMapsBinding binding;
     ImageButton genButton;
     ImageButton markerButton;
+    ImageButton notable;
     Marker marker;
     Marker previousMarker;
     boolean isMarker;
@@ -95,9 +92,12 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
     SupportMapFragment mapFragment;
     public ArrayList<LatLng> randomCoords;
     LocationRequest locationRequest;
-
     Marker userLocationMarker;
     Circle userLocationAccuracyCircle;
+    Marker longPressMarker;
+    boolean longmarker;
+    List<LatLng> notableLocations;
+
 
 
     @Override
@@ -117,11 +117,7 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         //initialize fused location
         client = LocationServices.getFusedLocationProviderClient(this);
 
-        //alert button
-        alertButton = (Button) findViewById(R.id.alertButton);
-        alertView = (TextView) findViewById(R.id.alertView);
-        //directions stuff
-        directionsButton = findViewById(R.id.directionsButton);
+        registerReceiver(broadcastReceiver, new IntentFilter("updatetext"));
 
 
         //kml stuff
@@ -129,28 +125,25 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
 
         isMarker = false;
         markerDragged = false;
+        longmarker=false;
         //button
         genButton = (ImageButton) findViewById(R.id.genButton);//get id of genButton
         markerButton = (ImageButton) findViewById(R.id.markerButton);//get id of genButton
-
+        notable = (ImageButton) findViewById(R.id.notableButton);
         //geofence setup
         geofencingClient = LocationServices.getGeofencingClient(this);
         geofenceHelper = new GeofenceHelper(this);
 
         genButton.setOnClickListener(new View.OnClickListener() {
-            @RequiresApi(api = Build.VERSION_CODES.M)
             @Override
             public void onClick(View view) {
                 if (!markerDragged) {
                     Toast.makeText(getApplicationContext(), "Please drag the draggable marker to the max distance you're willing to cover while exploring!", Toast.LENGTH_LONG).show();//display the text of button1
 
                 } else {
-//                    draggedCoords= draggable_marker.getPosition();
-
-//                    new FetchURL(MapsActivity.this).execute(getUrl(userLoc.getPosition(), draggedCoords, "walking"), "walking");
                     if (isMarker) {
                         previousMarker.remove();
-                        mMap.clear();
+                       mMap.clear();
                     }
                     if (randomCoords != null) {
                         LatLng randomCoord = generateRandomCoords(randomCoords);
@@ -160,6 +153,9 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
                         //ple
                         addCircle(randomCoord, GEOFENCE_RADIUS);
                         addGeofence(randomCoord, GEOFENCE_RADIUS);
+
+
+
                         // Showing the current location in Google Map
                         mMap.moveCamera(CameraUpdateFactory.newLatLng(randomCoord));
 
@@ -169,40 +165,49 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
                 }
             }
         });
+        //picture
+        locationRequest = LocationRequest.create();
+        locationRequest.setInterval(500);
+        locationRequest.setFastestInterval(500);
+        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+
+        List<LatLng> notableLocations=new ArrayList<LatLng>();
+
+        registerReceiver(broadcastReceiver, new IntentFilter("updatetext"));
         markerButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
 //                Toast.makeText(getApplicationContext(), "This button works!", Toast.LENGTH_LONG).show();//display the text of button1
                 Toast.makeText(getApplicationContext(), "Drag the draggable marker to distance you want to explore!", Toast.LENGTH_LONG).show();
                 if (!markerDragged) {
-                    final LatLng acadLocation = new LatLng(39.04278015504511, -77.55114546415827);
-                    nextLoc = new MarkerOptions().position(acadLocation).title("Draggable Marker").draggable(true);
+                    LatLng mark=userLoc.getPosition();
+//                    final LatLng acadLocation = new LatLng(userLoc.lat, -77.55114546415827);
+                    nextLoc = new MarkerOptions().position(mark).title("Draggable Marker").draggable(true);
                     draggable_marker = mMap.addMarker(nextLoc);
-                    mMap.moveCamera(CameraUpdateFactory.newLatLng(acadLocation));
+                    mMap.moveCamera(CameraUpdateFactory.newLatLng(mark));
                     markerDragged = true;
                 } else {
                     draggable_marker.remove();
-                    final LatLng acadLocation = new LatLng(39.04278015504511, -77.55114546415827);
-                    nextLoc = new MarkerOptions().position(acadLocation).title("Draggable Marker").draggable(true);
+                    LatLng mark=userLoc.getPosition();
+//                    final LatLng acadLocation = new LatLng(39.04278015504511, -77.55114546415827);
+                    nextLoc = new MarkerOptions().position(mark).title("Draggable Marker").draggable(true);
                     draggable_marker = mMap.addMarker(nextLoc);
                 }
             }
         });
-        directionsButton.setOnClickListener(view -> {
-
-
+        notable.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (!longmarker) {
+                    Toast.makeText(getApplicationContext(), "Press on your new Notable Location to save it!", Toast.LENGTH_LONG).show();
+                } else {
+                    notableLocations.add(longPressMarker.getPosition());
+                    longPressMarker.remove();
+                    longmarker=false;
+                    Log.d("notable", notableLocations.toString());
+                }
+            }
         });
-//picture
-        locationRequest = LocationRequest.create();
-        locationRequest.setInterval(500);
-        locationRequest.setFastestInterval(500);
-        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-
-        registerReceiver(broadcastReceiver, new IntentFilter("updatetext"));
-
-
-
-
     }
 
     //coord generation
@@ -260,19 +265,20 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
 
         Log.d("mylog", "Added Markers");
 
-        // Add a marker in Sydney and move the camera
-//        LatLng riverside = new LatLng(39.09170554630121, -77.49002780741466);
-//
-//        mMap.addMarker(new MarkerOptions().position(riverside).title("Marker in Riverside"));
+        mMap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
+            @Override
+            public void onMapLongClick(LatLng latLng) {
+                MarkerOptions userMarker = new MarkerOptions().position(latLng);
+                longPressMarker = mMap.addMarker(userMarker);
+                longmarker=true;
+            }
+        });
 
-////        mMap.moveCamera(CameraUpdateFactory.newLatLng(userLoc.getPosition()));
-//        LatLng lands = new LatLng(39.081797503788735, -77.49575298111547);
-//
-//        mMap.addMarker(new MarkerOptions().position(lands).title("Marker in Lansdowne Town Center"));
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED &&
                 ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) ==
                         PackageManager.PERMISSION_GRANTED) {
             enableUserLocation();
+//            mMap.setOnMapLongClickListener(this);
         } else {
             if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
                 //shows user dialog why permission is necessary
@@ -280,27 +286,22 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
 
             } else {
                 ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, ACCESS_LOCATION_REQUEST_CODE);
-                mMap.setOnMarkerDragListener(this);
-
             }
         }
-
-
-            mMap.setOnMarkerDragListener(this);
-
+        mMap.setOnMarkerDragListener(this);
     }
 
     LocationCallback locationCallback = new LocationCallback() {
         @Override
         public void onLocationResult(@NonNull LocationResult locationResult) {
             super.onLocationResult(locationResult);
-            Log.d(TAG, "onLocationResult: " + locationResult.getLastLocation());
+            Log.d("Tag", "onLocationResult: " + locationResult.getLastLocation());
             if (mMap != null) {
                 setUserLocationMarker(locationResult.getLastLocation());
             }
         }
-    };
 
+    };
     private void setUserLocationMarker(Location location) {
         LatLng latLng = new LatLng(location.getLatitude(), location.getLongitude());
         if (userLocationMarker == null) {
@@ -311,11 +312,11 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
             markerOptions.rotation(location.getBearing());
             markerOptions.anchor((float).5,(float).5);
             userLocationMarker = mMap.addMarker(markerOptions);
-            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 17));
+            //mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 17));
         } else {
             userLocationMarker.setPosition(latLng);
             userLocationMarker.setRotation(location.getBearing());
-            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 17));
+            //mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 17));
             //use the previously created marker
         }
 
@@ -377,7 +378,6 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
                             //Zoom map
                             googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latlng, 14));
                             //add marker on map
-                            googleMap.addMarker(userLoc);
                         }
                     });
                 }
@@ -416,14 +416,7 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
 
     }
 
-//    public void onMapLongClick(@NonNull LatLng latLng) {
-//        mMap.clear();
-//        addMarker(latLng);
-//        addCircle(latLng, GEOFENCE_RADIUS);
-////      addGeofence(latLng, GEOFENCE_RADIUS);
-//    }
 
-    @RequiresApi(api = Build.VERSION_CODES.M)
     @SuppressLint("MissingPermission")
     private void addGeofence(LatLng latLng, float radius) {
 
@@ -462,16 +455,14 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         mMap.addCircle(circleOptions);
 
     }
-
     BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             mMap.clear();
 
 
-            Toast.makeText(context, "beep", Toast.LENGTH_SHORT).show();
+            Toast.makeText(context, "congrats on reaching the marker!", Toast.LENGTH_SHORT).show();
         }
-
     };
 
     @Override
@@ -479,5 +470,4 @@ public class MapsActivity extends FragmentActivity implements OnMyLocationButton
         super.onDestroy();
         unregisterReceiver(broadcastReceiver);
     }
-
 }
