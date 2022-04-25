@@ -24,6 +24,28 @@
         map:uiZoomControls="true"
         map:uiZoomGestures="true"/>
 
+
+    <TextView
+        android:id = "@+id/alertView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below = "@+id/alertButton"
+        android:text = "alert received"
+        android:textSize = "20dp"
+        android:visibility = "invisible"
+        android:layout_marginTop="10dp"/>
+
+    <TextView
+        android:id="@+id/countLocation"
+        android:layout_width="45dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|right"
+        android:layout_marginBottom="10dp"
+        android:layout_marginRight="25dp"
+        android:text="@+id/countLocation"
+        android:textSize="20sp"
+        android:textColor="@color/black"/>
+
     <ImageButton
         android:id="@+id/genButton"
         android:layout_width="70dp"
@@ -36,7 +58,7 @@
         android:src="@drawable/genbutton"
         android:background="@android:color/transparent"
 
-        ></ImageButton>
+        />
 
     <ImageButton
         android:id="@+id/markerButton"
@@ -46,9 +68,16 @@
         android:background="@android:color/transparent"
         android:scaleType="fitXY"
         android:layout_marginLeft="100dp"
-        android:src="@drawable/marker"
-        ></ImageButton>
+        android:src="@drawable/marker" />
 
+    <Button
+        android:id="@+id/infoButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|right"
+        android:background="@android:color/transparent"
+        android:scaleType="fitXY"
+        android:src="@drawable/infobutton" />
 
     <ImageButton
         android:id="@+id/notableButton"
@@ -58,6 +87,6 @@
         android:layout_marginLeft="340dp"
         android:layout_gravity="bottom"
         android:src="@drawable/notable"
-        ></ImageButton>
+        android:background="@android:color/transparent" />
 
 </FrameLayout>
